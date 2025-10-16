@@ -4,7 +4,7 @@
 [![Minecraft](https://img.shields.io/badge/minecraft-1.20.1+-green.svg)](https://www.minecraft.net/)
 [![License](https://img.shields.io/badge/license-MIT-orange.svg)](LICENSE)
 [![Spigot](https://img.shields.io/badge/spigot-download-yellow.svg)](https://www.spigotmc.org/resources/mbth-login-security.129264/)
-[![Discord](https://img.shields.io/discord/YOUR_SERVER_ID?color=7289da&label=discord&logo=discord&logoColor=white)](https://discord.gg/Q4xe2Uhksj)
+[![Discord](https://img.shields.io/discord/911990654886871100?color=7289da&label=discord&logo=discord&logoColor=white)](https://discord.gg/Q4xe2Uhksj)
 
 **Advanced login security system for Minecraft servers with PIN authentication, premium player detection, Discord webhooks, and comprehensive admin tools.**
 
