@@ -1,0 +1,58 @@
+name: MBTHLoginSecurity
+version: 1.0.0
+main: com.mbth.loginsecurity.MBTHLoginSecurity
+api-version: 1.21
+author: MBTH Development
+description: Advanced login security system for MBTH server
+website: https://mbth.dev
+
+commands:
+  register:
+    description: Register a new account
+    usage: /register <password> <confirm-password>
+    aliases: [reg]
+  
+  login:
+    description: Login to your account
+    usage: /login <password>
+    aliases: [l]
+  
+  changepassword:
+    description: Change your account password
+    usage: /changepassword <old-password> <new-password> <confirm-new>
+    aliases: [changepass, chpass]
+  
+  resetpassword:
+    description: Admin command to reset a player's password
+    usage: /resetpassword <player> <new-password>
+    aliases: [resetpass, passreset]
+    permission: mbth.admin
+  
+  freezeaccount:
+    description: Freeze a player's account preventing login
+    usage: /freezeaccount <player>
+    aliases: [freeze, lockaccount]
+    permission: mbth.admin
+  
+  unfreezeaccount:
+    description: Unfreeze a player's account
+    usage: /unfreezeaccount <player>
+    aliases: [unfreeze, unlockaccount]
+    permission: mbth.admin
+  
+  forcelogout:
+    description: Force logout an authenticated player
+    usage: /forcelogout <player>
+    aliases: [forcelog, logout]
+    permission: mbth.admin
+  
+  checkalt:
+    description: Check for alt accounts of a player
+    usage: /checkalt <player>
+    aliases: [checkalts, alts]
+    permission: mbth.admin
+
+permissions:
+  mbth.admin:
+    description: Administrator permissions for password reset
+    default: op

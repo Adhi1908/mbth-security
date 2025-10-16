@@ -1,0 +1,37 @@
+# MBTH Login Security Configuration
+
+# Maximum number of failed login attempts before kick
+max-login-attempts: 3
+
+# Time in seconds before player is kicked for not logging in
+login-timeout-seconds: 60
+
+# Session settings
+session:
+  # Enable session persistence (players stay logged in after rejoining)
+  enabled: true
+  
+  # Session duration in minutes
+  duration-minutes: 30
+
+# Alt account detection
+alt-detection:
+  # Enable automatic alt account detection via IP tracking
+  enabled: true
+  
+  # Notify admins when alt accounts are detected
+  notify-admins: true
+
+# Messages (supports color codes with &)
+messages:
+  prefix: "&6[&eMBTH&6] &7"
+  
+  login-prompt: "&eWelcome back! Please login with &a/login <password>"
+  register-prompt: "&eWelcome! Please register with &a/register <password> <confirm>"
+  
+  login-success: "&aSuccessfully logged in!"
+  register-success: "&aAccount registered successfully!"
+  
+  already-authenticated: "&cYou are already authenticated!"
+  incorrect-password: "&cIncorrect password!"
+  too-many-attempts: "&cToo many failed attempts!"
