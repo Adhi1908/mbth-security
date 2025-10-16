@@ -1,8 +1,10 @@
 # MBTH Login Security
 
-[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/mbth/login-security)
+[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/Adhi1908/mbth-security)
 [![Minecraft](https://img.shields.io/badge/minecraft-1.20.1+-green.svg)](https://www.minecraft.net/)
 [![License](https://img.shields.io/badge/license-MIT-orange.svg)](LICENSE)
+[![Spigot](https://img.shields.io/badge/spigot-download-yellow.svg)](https://www.spigotmc.org/resources/mbth-login-security.129264/)
+[![Discord](https://img.shields.io/discord/YOUR_SERVER_ID?color=7289da&label=discord&logo=discord&logoColor=white)](https://discord.gg/Q4xe2Uhksj)
 
 **Advanced login security system for Minecraft servers with PIN authentication, premium player detection, Discord webhooks, and comprehensive admin tools.**
 
@@ -433,13 +435,14 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ### Need Help?
 
-- **Discord:** [Join our server](https://discord.gg/mbth)
-- **Issues:** [GitHub Issues](https://github.com/mbth/login-security/issues)
-- **Wiki:** [Documentation](https://github.com/mbth/login-security/wiki)
+- **Discord:** [Join our server](https://discord.gg/Q4xe2Uhksj)
+- **Issues:** [GitHub Issues](https://github.com/Adhi1908/mbth-security/issues)
+- **Wiki:** [Documentation](https://github.com/Adhi1908/mbth-security/wiki)
+- **Spigot:** [Download & Reviews](https://www.spigotmc.org/resources/mbth-login-security.129264/)
 
 ### Report Bugs
 
-Found a bug? Please report it on our [GitHub Issues](https://github.com/mbth/login-security/issues) page with:
+Found a bug? Please report it on our [GitHub Issues](https://github.com/Adhi1908/mbth-security/issues) page with:
 - Server version
 - Plugin version
 - Error logs (from console)
@@ -463,15 +466,17 @@ Found a bug? Please report it on our [GitHub Issues](https://github.com/mbth/log
 
 ## 👏 Credits
 
-**Developed by:** MBTH Development Team  
-**Author:** MBTH  
-**Website:** [https://mbth.dev](https://mbth.dev)
+**Developed by:** MBTH Studios  
+**Lead Developer:** Adhi1908  
+**GitHub:** [github.com/Adhi1908](https://github.com/Adhi1908)  
+**Spigot:** [MBTH Login Security](https://www.spigotmc.org/resources/mbth-login-security.129264/)
 
 ### Special Thanks
 - Minecraft community for feedback
 - Contributors and testers
 - Discord for webhook API
 - Paper/Spigot teams
+- All supporters and users
 
 ---
 
@@ -525,10 +530,10 @@ Found a bug? Please report it on our [GitHub Issues](https://github.com/mbth/log
 
 ## 📞 Contact
 
-- **Email:** support@mbth.dev
-- **Discord:** [MBTH Server](https://discord.gg/mbth)
-- **GitHub:** [@mbth](https://github.com/mbth)
-- **Website:** [mbth.dev](https://mbth.dev)
+- **Discord:** [MBTH Studios Server](https://discord.gg/Q4xe2Uhksj)
+- **GitHub:** [@Adhi1908](https://github.com/Adhi1908)
+- **Spigot:** [Plugin Page](https://www.spigotmc.org/resources/mbth-login-security.129264/)
+- **Issues:** [Report Bugs](https://github.com/Adhi1908/mbth-security/issues)
 
 ---
 
@@ -545,9 +550,11 @@ If you find this plugin useful, please:
 
 <div align="center">
 
-**Made with ❤️ by MBTH Development**
+**Made with ❤️ by MBTH Studios**
 
-[Website](https://mbth.dev) • [Discord](https://discord.gg/mbth) • [GitHub](https://github.com/mbth/login-security)
+**Lead Developer: Adhi1908**
+
+[GitHub](https://github.com/Adhi1908/mbth-security) • [Discord](https://discord.gg/Q4xe2Uhksj) • [Spigot](https://www.spigotmc.org/resources/mbth-login-security.129264/)
 
 </div>
 
