@@ -4,11 +4,15 @@ import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.boss.BarColor;
+import org.bukkit.boss.BarStyle;
+import org.bukkit.boss.BossBar;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.*;
+import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
@@ -44,6 +48,9 @@ public class MBTHLoginSecurity extends JavaPlugin implements Listener {
     private final Set<UUID> frozenPlayers = new HashSet<>();
     private final Map<String, List<UUID>> ipToAccounts = new HashMap<>();
     
+    // Session Hijacking Prevention
+    private final Map<String, UUID> activePlayerNames = new HashMap<>(); // Username -> UUID mapping
+    
     // PIN Code System
     private final Map<UUID, Boolean> pinVerified = new HashMap<>();
     private final Map<UUID, Integer> pinAttempts = new HashMap<>();
@@ -54,8 +61,10 @@ public class MBTHLoginSecurity extends JavaPlugin implements Listener {
     private final Map<UUID, Inventory> pinInventories = new HashMap<>();
     private final Map<UUID, Boolean> pinSetupMode = new HashMap<>(); // Track if vault is in setup mode
     private final Map<UUID, String> loginMethod = new HashMap<>();
-    private final Set<UUID> premiumPlayers = new HashSet<>();
     private final Set<UUID> loginChoiceMade = new HashSet<>();
+    
+    // Boss Bar for auth prompts (always visible!)
+    private final Map<UUID, BossBar> authBossBars = new HashMap<>();
     
     private File dataFile;
     private FileConfiguration dataConfig;
@@ -72,8 +81,7 @@ public class MBTHLoginSecurity extends JavaPlugin implements Listener {
     private int pinLength;
     private int maxPinAttempts;
     
-    // Premium/Cracked Configuration
-    private boolean premiumBypass;
+    // Login Method Configuration
     private boolean allowLoginMethodChoice;
     
     // Server Branding
@@ -83,12 +91,10 @@ public class MBTHLoginSecurity extends JavaPlugin implements Listener {
     private String titleScoreboard;
     
     // Customizable Messages
-    private String msgWelcomePremium;
     private String msgWelcomeBack;
     private String msgWelcomeRegistered;
     private String msgLoginSuccess;
     private String msgRegisterSuccess;
-    private String msgPremiumDetected;
     private String msgPinVerified;
     private String msgReloadSuccess;
     private String msgReloadDetails;
@@ -97,7 +103,6 @@ public class MBTHLoginSecurity extends JavaPlugin implements Listener {
     private boolean discordEnabled;
     private String discordLoginWebhook;
     private String discordRegistrationWebhook;
-    private boolean logPremiumLogin;
     private boolean logFailedAttempts;
     private String discordUsername;
     private String discordAvatarUrl;
@@ -127,6 +132,18 @@ public class MBTHLoginSecurity extends JavaPlugin implements Listener {
     @Override
     public void onDisable() {
         savePlayerData();
+        
+        // Clean up active username tracking
+        activePlayerNames.clear();
+        getLogger().info("Cleared active username tracking (" + activePlayerNames.size() + " entries)");
+        
+        // Clean up all boss bars
+        for (BossBar bar : authBossBars.values()) {
+            bar.removeAll();
+            bar.setVisible(false);
+        }
+        authBossBars.clear();
+        
         getLogger().info("MBTH Login Security has been disabled!");
     }
     
@@ -145,12 +162,10 @@ public class MBTHLoginSecurity extends JavaPlugin implements Listener {
         titleScoreboard = config.getString("titles.scoreboard-title", "&6&lMBTH LOGIN SECURITY");
         
         // Customizable Messages
-        msgWelcomePremium = config.getString("messages.welcome-premium", "&7Welcome to {server}! You have been automatically authenticated.");
         msgWelcomeBack = config.getString("messages.welcome-back", "&7Welcome back to {server}!");
         msgWelcomeRegistered = config.getString("messages.welcome-registered", "&7Your account is now secured.");
         msgLoginSuccess = config.getString("messages.login-success", "&a&l✔ Successfully logged in!");
         msgRegisterSuccess = config.getString("messages.register-success", "&a&l✔ Successfully registered!");
-        msgPremiumDetected = config.getString("messages.premium-detected", "&a&l✔ Premium Account Detected!");
         msgPinVerified = config.getString("messages.pin-verified", "&a&l✔ PIN verified successfully!");
         msgReloadSuccess = config.getString("messages.reload-success", "&a&l✔ Configuration Reloaded!");
         msgReloadDetails = config.getString("messages.reload-details", "&7All settings have been updated from config.yml");
@@ -161,15 +176,13 @@ public class MBTHLoginSecurity extends JavaPlugin implements Listener {
         pinLength = config.getInt("pin-code.length", 4);
         maxPinAttempts = config.getInt("pin-code.max-attempts", 3);
         
-        // Premium/Cracked Configuration
-        premiumBypass = config.getBoolean("premium-bypass.enabled", true);
+        // Login Method Configuration
         allowLoginMethodChoice = config.getBoolean("login-method-choice.enabled", true);
         
         // Discord Integration (Webhooks)
         discordEnabled = config.getBoolean("discord.enabled", false);
         discordLoginWebhook = config.getString("discord.login-webhook", "");
         discordRegistrationWebhook = config.getString("discord.registration-webhook", "");
-        logPremiumLogin = config.getBoolean("discord.log-premium-login", true);
         logFailedAttempts = config.getBoolean("discord.log-failed-attempts", true);
         discordUsername = config.getString("discord.username", "MBTH Security");
         discordAvatarUrl = config.getString("discord.avatar-url", "https://i.imgur.com/AfFp7pu.png");
@@ -178,7 +191,7 @@ public class MBTHLoginSecurity extends JavaPlugin implements Listener {
         if (discordEnabled) {
             if (discordLoginWebhook.isEmpty() && discordRegistrationWebhook.isEmpty()) {
                 getLogger().warning("Discord integration enabled but no webhook URLs configured!");
-                discordEnabled = false;
+            discordEnabled = false;
             } else {
                 getLogger().info("Discord webhook integration enabled!");
             }
@@ -216,6 +229,109 @@ public class MBTHLoginSecurity extends JavaPlugin implements Listener {
         }
     }
     
+    // ===== CRITICAL: SESSION HIJACKING PREVENTION =====
+    // This event fires BEFORE PlayerJoinEvent and BEFORE Minecraft kicks the original player
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onAsyncPreLogin(AsyncPlayerPreLoginEvent event) {
+        String username = event.getName();
+        UUID incomingUUID = event.getUniqueId();
+        String incomingIP = event.getAddress().getHostAddress();
+        
+        getLogger().info("[PRE-LOGIN CHECK] " + username + " attempting to join (UUID: " + incomingUUID + ", IP: " + incomingIP + ")");
+        
+        // Check if this username is already online
+        UUID existingUUID = activePlayerNames.get(username);
+        
+        if (existingUUID != null) {
+            // Someone with this username is already online
+            Player existingPlayer = Bukkit.getPlayer(existingUUID);
+            
+            if (existingPlayer != null && existingPlayer.isOnline()) {
+                String existingIP = existingPlayer.getAddress().getAddress().getHostAddress();
+                
+                // CRITICAL: Block the new connection to prevent session hijacking
+                getLogger().severe("========================================");
+                getLogger().severe("⚠️  SESSION HIJACKING ATTEMPT BLOCKED!");
+                getLogger().severe("========================================");
+                getLogger().severe("Username: " + username);
+                getLogger().severe("Existing UUID: " + existingUUID);
+                getLogger().severe("Existing IP: " + existingIP);
+                getLogger().severe("Attacker UUID: " + incomingUUID);
+                getLogger().severe("Attacker IP: " + incomingIP);
+                getLogger().severe("========================================");
+                
+                // Alert the existing player in-game
+                existingPlayer.sendMessage(ChatColor.translateAlternateColorCodes('&',
+                    "\n&c&l⚠️  SECURITY ALERT ⚠️"));
+                existingPlayer.sendMessage(ChatColor.translateAlternateColorCodes('&',
+                    "&7Someone tried to join with your username!"));
+                existingPlayer.sendMessage(ChatColor.translateAlternateColorCodes('&',
+                    "&7Attacker IP: &c" + incomingIP));
+                existingPlayer.sendMessage(ChatColor.translateAlternateColorCodes('&',
+                    "&7The connection was &a✔ BLOCKED &7by security."));
+                existingPlayer.sendMessage(ChatColor.translateAlternateColorCodes('&',
+                    "&7If you're on a cracked server, someone may know your username."));
+                existingPlayer.sendMessage(ChatColor.translateAlternateColorCodes('&',
+                    "&7Consider using &e/changepassword &7for extra security.\n"));
+                
+                // Alert all online admins
+                for (Player admin : Bukkit.getOnlinePlayers()) {
+                    if (admin.hasPermission("mbth.admin") || admin.isOp()) {
+                        admin.sendMessage(ChatColor.translateAlternateColorCodes('&',
+                            "\n&c&l⚠️  SESSION HIJACKING BLOCKED!"));
+                        admin.sendMessage(ChatColor.translateAlternateColorCodes('&',
+                            "&7Username: &e" + username));
+                        admin.sendMessage(ChatColor.translateAlternateColorCodes('&',
+                            "&7Existing IP: &a" + existingIP + " &7(Protected)"));
+                        admin.sendMessage(ChatColor.translateAlternateColorCodes('&',
+                            "&7Attacker IP: &c" + incomingIP + " &7(Blocked)\n"));
+                    }
+                }
+                
+                // Discord webhook notification
+                sendSecurityNotification(
+                    "🚨 **SESSION HIJACKING BLOCKED!**\n\n" +
+                    "**Username:** `" + username + "`\n" +
+                    "**Existing Player:**\n" +
+                    "  • UUID: `" + existingUUID + "`\n" +
+                    "  • IP: `" + existingIP + "`\n\n" +
+                    "**Attacker Blocked:**\n" +
+                    "  • UUID: `" + incomingUUID + "`\n" +
+                    "  • IP: `" + incomingIP + "`\n\n" +
+                    "✅ **Connection was blocked before the original player could be kicked.**"
+                );
+                
+                // BLOCK the new connection with a detailed message
+                event.disallow(
+                    AsyncPlayerPreLoginEvent.Result.KICK_OTHER,
+                    ChatColor.translateAlternateColorCodes('&',
+                        "&c&l⚠️  CONNECTION BLOCKED ⚠️\n\n" +
+                        "&7A player with the username &e" + username + " &7is already online.\n\n" +
+                        "&cThis server is protected against session hijacking.\n\n" +
+                        "&7If this is your account:\n" +
+                        "&7  1. Wait for the other session to disconnect\n" +
+                        "&7  2. If you were just playing, you may have been disconnected\n" +
+                        "&7  3. Contact server staff if this persists\n\n" +
+                        "&7If this is NOT your account:\n" +
+                        "&c  • You cannot join with a username that's already in use\n" +
+                        "&c  • This attempt has been logged and reported to staff\n\n" +
+                        "&8Your IP: " + incomingIP)
+                );
+                
+                return; // Block the connection
+            } else {
+                // The UUID is in our map but player is not online anymore
+                // This can happen if there was a dirty disconnect
+                // Clean up the stale entry
+                getLogger().info("[PRE-LOGIN] Cleaning up stale username entry for " + username);
+                activePlayerNames.remove(username);
+            }
+        }
+        
+        // Allow the connection - we'll track it in PlayerJoinEvent
+        getLogger().info("[PRE-LOGIN] ✔ Allowing connection for " + username);
+    }
+    
     private void savePlayerData() {
         try {
             dataConfig.save(dataFile);
@@ -228,23 +344,23 @@ public class MBTHLoginSecurity extends JavaPlugin implements Listener {
     public void onPlayerJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
         UUID uuid = player.getUniqueId();
+        String username = player.getName();
         String ip = player.getAddress().getAddress().getHostAddress();
         
-        // Check if player is premium (bought the game)
-        if (premiumBypass && isPremiumPlayer(player)) {
-            premiumPlayers.add(uuid);
-            authenticatedPlayers.put(uuid, true);
-            pinVerified.put(uuid, true);
-            player.sendMessage(formatMessage(msgPremiumDetected));
-            player.sendMessage(formatMessage(msgWelcomePremium));
-            
-            // Discord notification for premium login
-            if (logPremiumLogin) {
-                sendLoginNotification("⭐ **" + player.getName() + "** logged in (Premium Account)");
-            }
-            return;
-        }
+        getLogger().info("[JOIN] Player " + username + " joined successfully (UUID: " + uuid + ")");
         
+        // Register this player's username in our active tracking map
+        // This prevents future duplicate username connections (session hijacking)
+        activePlayerNames.put(username, uuid);
+        getLogger().info("[SESSION] Registered active username: " + username + " -> " + uuid);
+        
+        // All players must authenticate (no premium bypass)
+        getLogger().info("[AUTH] " + username + " requires authentication");
+        continueJoinProcess(player, uuid, ip);
+    }
+    
+    // Continue the join process (separated for async calls)
+    private void continueJoinProcess(Player player, UUID uuid, String ip) {
         loginLocations.put(uuid, player.getLocation().clone());
         loginAttempts.put(uuid, 0);
         
@@ -265,6 +381,7 @@ public class MBTHLoginSecurity extends JavaPlugin implements Listener {
         if (sessionEnabled && isSessionValid(uuid)) {
             authenticatedPlayers.put(uuid, true);
             pinVerified.put(uuid, true);
+            removeAuthBossBar(uuid); // Remove boss bar on auth
             sendMessage(player, "&a&lWelcome back! &7Session restored.");
             return;
         }
@@ -355,11 +472,20 @@ public class MBTHLoginSecurity extends JavaPlugin implements Listener {
     
     @EventHandler
     public void onPlayerQuit(PlayerQuitEvent event) {
-        UUID uuid = event.getPlayer().getUniqueId();
+        Player player = event.getPlayer();
+        UUID uuid = player.getUniqueId();
+        String username = player.getName();
         
         if (sessionEnabled && authenticatedPlayers.getOrDefault(uuid, false)) {
             saveSession(uuid);
         }
+        
+        // CRITICAL: Remove username from active tracking to allow reconnection
+        activePlayerNames.remove(username);
+        getLogger().info("[SESSION] Unregistered username on quit: " + username);
+        
+        // Clean up boss bar
+        removeAuthBossBar(uuid);
         
         authenticatedPlayers.remove(uuid);
         loginLocations.remove(uuid);
@@ -564,6 +690,7 @@ public class MBTHLoginSecurity extends JavaPlugin implements Listener {
             registeredPlayers.add(uuid);
             authenticatedPlayers.put(uuid, true);
             pinVerified.put(uuid, false); // PIN not verified yet - must set up PIN
+            removeAuthBossBar(uuid); // Remove boss bar on successful registration
             
             getLogger().info("Flags set.");
             
@@ -636,6 +763,7 @@ public class MBTHLoginSecurity extends JavaPlugin implements Listener {
                 // Password login = Full authentication, no PIN needed
                 authenticatedPlayers.put(uuid, true);
                 pinVerified.put(uuid, true);
+                removeAuthBossBar(uuid); // Remove boss bar on auth
                 
                 enablePlayer(player);
                 
@@ -1377,11 +1505,31 @@ public class MBTHLoginSecurity extends JavaPlugin implements Listener {
     }
     
     private void sendLoginPrompt(Player player) {
+        UUID uuid = player.getUniqueId();
+        
         player.sendTitle(
             ChatColor.translateAlternateColorCodes('&', titleMain),
             ChatColor.translateAlternateColorCodes('&', titleSubtitle),
             10, 999999, 10
         );
+        
+        // Create RAINBOW BOSS BAR - Always visible at top of screen!
+        BossBar bossBar = Bukkit.createBossBar(
+            ChatColor.translateAlternateColorCodes('&', "&e⚠ &fPlease login: &a/login <password>"),
+            BarColor.RED,
+            BarStyle.SOLID
+        );
+        bossBar.setProgress(1.0);
+        bossBar.setVisible(true);
+        bossBar.addPlayer(player);
+        authBossBars.put(uuid, bossBar);
+        
+        // Start rainbow color animation
+        startRainbowBossBar(uuid, bossBar);
+        
+        // Delay messages slightly to ensure they appear after player is fully loaded
+        Bukkit.getScheduler().runTaskLater(this, () -> {
+            if (!player.isOnline()) return;
         
         sendMessage(player, "");
         sendMessage(player, "&6&m                                                  ");
@@ -1394,14 +1542,38 @@ public class MBTHLoginSecurity extends JavaPlugin implements Listener {
         sendMessage(player, "");
         sendMessage(player, "&6&m                                                  ");
         sendMessage(player, "");
+        }, 10L); // 0.5 second delay
+        
+        // Send repeated action bar messages so player always sees it
+        sendRepeatingActionBar(player, "&e⚠ Please login: /login <password>");
     }
     
     private void sendRegisterPrompt(Player player) {
+        UUID uuid = player.getUniqueId();
+        
         player.sendTitle(
             ChatColor.translateAlternateColorCodes('&', titleMain),
             ChatColor.translateAlternateColorCodes('&', "&aPlease register an account"),
             10, 999999, 10
         );
+        
+        // Create RAINBOW BOSS BAR - Always visible at top of screen!
+        BossBar bossBar = Bukkit.createBossBar(
+            ChatColor.translateAlternateColorCodes('&', "&e⚠ &fPlease register: &a/register <password> <confirm>"),
+            BarColor.PINK,
+            BarStyle.SOLID
+        );
+        bossBar.setProgress(1.0);
+        bossBar.setVisible(true);
+        bossBar.addPlayer(player);
+        authBossBars.put(uuid, bossBar);
+        
+        // Start rainbow color animation
+        startRainbowBossBar(uuid, bossBar);
+        
+        // Delay messages slightly to ensure they appear after player is fully loaded
+        Bukkit.getScheduler().runTaskLater(this, () -> {
+            if (!player.isOnline()) return;
         
         sendMessage(player, "");
         sendMessage(player, "&6&m                                                  ");
@@ -1415,6 +1587,10 @@ public class MBTHLoginSecurity extends JavaPlugin implements Listener {
         sendMessage(player, "");
         sendMessage(player, "&6&m                                                  ");
         sendMessage(player, "");
+        }, 10L); // 0.5 second delay
+        
+        // Send repeated action bar messages so player always sees it
+        sendRepeatingActionBar(player, "&e⚠ Please register: /register <password> <confirm>");
     }
     
     private void startLoginTimeout(Player player) {
@@ -1568,30 +1744,6 @@ public class MBTHLoginSecurity extends JavaPlugin implements Listener {
         sendMessage(player, "");
         sendMessage(player, "&6&m                                                  ");
         sendMessage(player, "");
-    }
-    
-    // Premium Player Detection
-    private boolean isPremiumPlayer(Player player) {
-        // Check if player is in online mode (premium)
-        return player.isOnline() && !player.hasPlayedBefore() ? false : !isPlayerCracked(player);
-    }
-    
-    private boolean isPlayerCracked(Player player) {
-        // In offline mode servers, all players appear as cracked
-        // In online mode servers, only authenticated players are premium
-        try {
-            // Check if server is in online mode
-            if (Bukkit.getServer().getOnlineMode()) {
-                // Server is in online mode, all players are premium
-                return false;
-            } else {
-                // Server is in offline mode, all players are cracked
-                return true;
-            }
-        } catch (Exception e) {
-            // Default to cracked for safety
-            return true;
-        }
     }
     
     // Login Method Choice GUI
@@ -1997,6 +2149,64 @@ public class MBTHLoginSecurity extends JavaPlugin implements Listener {
         return ChatColor.translateAlternateColorCodes('&', message.replace("{server}", serverName));
     }
     
+    // Send repeating action bar messages
+    private void sendRepeatingActionBar(Player player, String message) {
+        new BukkitRunnable() {
+            int count = 0;
+            @Override
+            public void run() {
+                if (!player.isOnline() || isAuthenticated(player) || count >= 60) {
+                    this.cancel();
+                    return;
+                }
+                player.sendActionBar(ChatColor.translateAlternateColorCodes('&', message));
+                count++;
+            }
+        }.runTaskTimer(this, 0L, 20L); // Every second for 60 seconds
+    }
+    
+    // Remove authentication boss bar
+    private void removeAuthBossBar(UUID uuid) {
+        BossBar bossBar = authBossBars.get(uuid);
+        if (bossBar != null) {
+            bossBar.setVisible(false);
+            bossBar.removeAll();
+            authBossBars.remove(uuid);
+            getLogger().info("[BOSS BAR] Removed boss bar for " + uuid);
+        }
+    }
+    
+    // Start rainbow color animation for boss bar
+    private void startRainbowBossBar(UUID uuid, BossBar bossBar) {
+        // Rainbow colors in order
+        final BarColor[] rainbowColors = {
+            BarColor.RED,
+            BarColor.YELLOW,
+            BarColor.GREEN,
+            BarColor.BLUE,
+            BarColor.PURPLE,
+            BarColor.PINK,
+            BarColor.WHITE
+        };
+        
+        new BukkitRunnable() {
+            int colorIndex = 0;
+            
+            @Override
+            public void run() {
+                // Stop if player authenticated or boss bar removed
+                if (!authBossBars.containsKey(uuid)) {
+                    this.cancel();
+                    return;
+                }
+                
+                // Change color
+                bossBar.setColor(rainbowColors[colorIndex]);
+                colorIndex = (colorIndex + 1) % rainbowColors.length;
+            }
+        }.runTaskTimer(this, 0L, 10L); // Change color every 0.5 seconds (10 ticks)
+    }
+    
     // ===== RELOAD COMMAND =====
     private boolean handleReload(CommandSender sender) {
         // Check permissions
@@ -2016,7 +2226,6 @@ public class MBTHLoginSecurity extends JavaPlugin implements Listener {
         sender.sendMessage(formatMessage(msgReloadDetails));
         sendMessageToSender(sender, "&7Server Name: &e" + serverName);
         sendMessageToSender(sender, "&7Discord Integration: " + (discordEnabled ? "&aEnabled" : "&cDisabled"));
-        sendMessageToSender(sender, "&7Premium Bypass: " + (premiumBypass ? "&aEnabled" : "&cDisabled"));
         sendMessageToSender(sender, "&7Login Method Choice: " + (allowLoginMethodChoice ? "&aEnabled" : "&cDisabled"));
         
         getLogger().info("Configuration reloaded by " + sender.getName());
@@ -2066,7 +2275,7 @@ public class MBTHLoginSecurity extends JavaPlugin implements Listener {
                 }
                 
                 connection.disconnect();
-            } catch (Exception e) {
+        } catch (Exception e) {
                 getLogger().warning("Failed to send Discord webhook: " + e.getMessage());
             }
         });

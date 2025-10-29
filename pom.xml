@@ -8,7 +8,7 @@
     <!-- 👇 Change these to your info -->
     <groupId>com.mbth.loginsecurity.MBTHLoginSecurity</groupId>
     <artifactId>MBTHLoginSecurity</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.1</version>
     <name>MBTHLoginSecurity</name>
 
     <properties>

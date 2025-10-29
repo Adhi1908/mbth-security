@@ -1,9 +1,9 @@
 name: MBTHLoginSecurity
-version: 1.0.0
+version: 1.0.1
 main: com.mbth.loginsecurity.MBTHLoginSecurity
 api-version: 1.21
 author: MBTH Development
-description: Advanced login security system for MBTH server
+description: Advanced login security system with session hijacking protection
 website: https://mbth.dev
 softdepend: [DiscordSRV]
 

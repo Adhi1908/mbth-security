@@ -1,6 +1,6 @@
 # MBTH Login Security
 
-[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/Adhi1908/mbth-security)
+[![Version](https://img.shields.io/badge/version-1.0.1-blue.svg)](https://github.com/Adhi1908/mbth-security)
 [![Minecraft](https://img.shields.io/badge/minecraft-1.20.1+-green.svg)](https://www.minecraft.net/)
 [![License](https://img.shields.io/badge/license-MIT-orange.svg)](LICENSE)
 [![Spigot](https://img.shields.io/badge/spigot-download-yellow.svg)](https://www.spigotmc.org/resources/mbth-login-security.129264/)
@@ -393,10 +393,20 @@ Detailed guides available in the `md/` folder:
 - **[UNREGISTER_COMMAND_GUIDE.md](md/UNREGISTER_COMMAND_GUIDE.md)** - Unregister command reference
 - **[NEW_FEATURES_DOCUMENTATION.md](md/NEW_FEATURES_DOCUMENTATION.md)** - All features explained
 - **[LOGIN_CHOICE_GUIDE.md](md/LOGIN_CHOICE_GUIDE.md)** - Login method choice
+- **[SESSION_HIJACKING_FIX.md](md/SESSION_HIJACKING_FIX.md)** - Critical security fix documentation
 
 ---
 
 ## 🔄 Updates & Changelog
+
+### Version 1.0.1 (Critical Security Update)
+- 🔒 **CRITICAL FIX**: Session hijacking vulnerability patched
+- 🛡️ Added pre-login username blocking to prevent duplicate username exploits
+- 🚨 Real-time security alerts for hijacking attempts
+- 📊 Enhanced logging for security events
+- 🔔 Discord webhook integration for security alerts
+- ✅ Complete protection against username-based session takeover
+- **⚠️ All users should update immediately**
 
 ### Version 1.0.0
 - ✅ Password authentication with SHA-256
